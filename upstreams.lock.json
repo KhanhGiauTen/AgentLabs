@@ -1,0 +1,15 @@
+{
+  "openclaw": {
+    "repository": "https://github.com/openclaw/openclaw.git",
+    "tag": "v2026.10.7",
+    "commit": "157d8c2bc3ea2fa183afdc11088e69690bf8e64e",
+    "version": "2026.10.7",
+    "runtime_package": "openclaw@2026.10.7",
+    "directory": "openclaw"
+  },
+  "agentlaboratory": {
+    "repository": "https://github.com/SamuelSchmidgall/AgentLaboratory.git",
+    "commit": "d9017d90e329112d2a80b7712f37ee9094d2cd27",
+    "directory": "reference-agent-laboratory"
+  }
+}
