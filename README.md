@@ -1,10 +1,10 @@
 # AgentLabs — local AI/ML research harness
 
-Ứng dụng local có UI chat, 10 vai trò: 6 agent tác vụ, 3 reviewer độc lập và 1 Review Chair, tool calling, checkpoint SQLite, tài liệu có provenance, mã thực nghiệm chờ duyệt, bản nháp và kiểm tra bằng chứng. Mục tiêu ngân sách API: **10–20 USD/tháng**.
+Ứng dụng local **chat mặc định**, có lịch sử hội thoại và tài liệu đính kèm. Khi bạn giao nhiệm vụ nghiên cứu rõ ràng, Research Lab chạy 10 vai trò: 6 agent tác vụ, 3 reviewer độc lập và 1 Review Chair, tool calling, checkpoint SQLite, mã thực nghiệm chờ duyệt, bản nháp và kiểm tra bằng chứng. Mục tiêu ngân sách API: **10–20 USD/tháng**.
 
 Repository: [KhanhGiauTen/AgentLabs](https://github.com/KhanhGiauTen/AgentLabs). Xem [thiết kế agentic system](docs/ARCHITECTURE.md), [milestones dài hạn](docs/ROADMAP.md) và [hướng dẫn đóng góp](CONTRIBUTING.md).
 
-![AgentLabs — hội đồng review độc lập ở chế độ demo](docs/ui-review-board.png)
+![AgentLabs — chat mặc định và Research Lab khi được giao nhiệm vụ; chế độ demo](docs/ui-chat-first.png)
 
 **Project đang đặt tại `D:\ResearchLab\research-studio`.** OpenClaw source: `D:\ResearchLab\openclaw`. Dependency/runtime: `D:\ResearchLab\work`. Thư mục output trong Codex liên kết đến project trên D.
 
@@ -66,7 +66,19 @@ Source được clone shallow nhưng có toàn bộ working tree, pin **v2026.10
 
 Các upstream được pin tại `upstreams.lock.json`; clone lại đúng commit bằng `scripts/clone-references.ps1`. Script giữ nguyên checkout đã tồn tại nếu commit không khớp và báo cần kiểm tra, không reset công việc local.
 
-## Quy trình
+## Chat hằng ngày và giao nghiên cứu
+
+Màn hình mặc định là **Trò chuyện**. Bạn có thể nhắn “xin chào”, hỏi kiến thức AI/ML, giải thích code được cung cấp, trao đổi ý tưởng hoặc chỉnh văn bản. Các lượt dùng chung lịch sử, lưu trong SQLite local; không khởi chạy phòng lab chỉ vì câu hỏi có từ “paper” hay “nghiên cứu”. Chat dùng model tiết kiệm của provider đã chọn; Hybrid chỉ cần key OpenRouter cho chat, model mạnh dành cho Methods/Chair khi chạy lab.
+
+- **Tự động**: mặc định chat; yêu cầu hành động rõ như “Hãy nghiên cứu các baseline RAG” hoặc “Thiết kế thực nghiệm so sánh hai baseline” mở Research Lab.
+- **Chỉ chat** hoặc `/chat <nội dung>`: trả lời trực tiếp.
+- **Research Lab** hoặc `/research <nhiệm vụ>`: giao việc cho cả workflow. Tin nhắn có thẻ **Mở lab** để xem tiến trình và duyệt thực nghiệm. Sau một lần chọn Research Lab, ô gửi trở về Tự động; Chỉ chat được giữ trong hội thoại.
+
+Router dùng quy tắc local, không gọi thêm LLM; câu chưa rõ giữ ở chat. Có thể chưa nhận ra mọi cách diễn đạt; dùng selector hoặc slash command để điều khiển rõ. `/chat` và `/research` có ưu tiên cao hơn selector. Chat có thể tiếp tục khi lab đang chạy; không tự duyệt code hoặc chạy lại lab theo nội dung phản hồi model.
+
+Đọc [hướng dẫn chat](docs/CHAT.md) để biết lịch sử, đính kèm, ngân sách và giới hạn. Chọn Demo chỉ để kiểm tra UI/luồng; cần provider đã cấu hình để có câu trả lời model thật.
+
+## Quy trình Research Lab
 
 1. Nhập câu hỏi, notes, giới hạn lượt; có thể đính kèm PDF/text và CSV/JSON trước khi chạy.
 2. PI xác định phạm vi → Literature tìm nguồn → Methods thiết kế protocol → Engineer stage `experiment.py`.
@@ -74,7 +86,7 @@ Các upstream được pin tại `upstreams.lock.json`; clone lại đúng commi
 4. Analyst đọc metrics/log → Writer viết draft → R1/R2/R3 review độc lập → Review Chair tổng hợp → audit và điều hướng có giới hạn.
 5. Bạn đọc manuscript, nguồn và review rồi xác nhận nhận bản nháp. Export ZIP gồm artifacts và log. Ứng dụng không nộp paper.
 
-Mỗi lần gửi là một workflow mới. Khi bật “Kèm bản nháp và nguồn của lượt hiện tại”, workflow mới kế thừa các bản nháp, source registry, tài liệu và dataset để bạn lặp lại nghiên cứu. Các agent tác vụ theo thứ tự; ba reviewer fan-out độc lập rồi join ở Chair. Chair có thể route sửa manuscript tối đa một vòng, hoặc đề xuất quay lại Literature/Methods qua human gate. Không tự tìm kiếm hàng chục giả thuyết hay tự sửa code vô hạn.
+Trong màn hình Research Lab, mỗi lần gửi nhiệm vụ là một workflow mới. Chat thường ở màn hình Trò chuyện không đi vào graph này. Nhiệm vụ lab từ hội thoại có thể kế thừa nghiên cứu gần nhất và tài liệu đã nhập. Trong màn hình lab, bật “Kèm bản nháp và nguồn của lượt hiện tại” để kế thừa khi tạo workflow mới. Các agent tác vụ theo thứ tự; ba reviewer fan-out độc lập rồi join ở Chair. Chair có thể route sửa manuscript tối đa một vòng, hoặc đề xuất quay lại Literature/Methods qua human gate. Không tự tìm kiếm hàng chục giả thuyết hay tự sửa code vô hạn.
 
 ## Thực nghiệm thật
 

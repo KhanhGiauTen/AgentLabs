@@ -1,6 +1,6 @@
 # AgentLabs roadmap
 
-The current release establishes a local harness with 10 logical roles, three sealed reviewers and a Chair, bounded revision routes, checkpoint recovery and explicit experiment approval. Milestones below are planned, not completed features.
+The current release establishes persistent chat as the default, a conservative intent router into Research Lab, and a local harness with 10 logical roles, three sealed reviewers and a Chair, bounded revision routes, checkpoint recovery and explicit experiment approval. Chat has bounded recent history, read-only document tools and shared budget accounting; token streaming and arbitrary local repo access are not implemented. Milestones below are planned, not completed features.
 
 ## 1. Validate research quality on a small pilot
 

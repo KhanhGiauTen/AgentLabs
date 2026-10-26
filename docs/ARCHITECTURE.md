@@ -4,6 +4,14 @@ Thiết kế ưu tiên **nghiên cứu có thể kiểm tra**, với nhiều rev
 
 Source tham khảo đã clone tại `D:\ResearchLab\reference-agent-laboratory`, commit `d9017d90e329112d2a80b7712f37ee9094d2cd27`. OpenClaw source pin riêng; cấu hình upstream có một nguồn chính tại `upstreams.lock.json`. Không nhúng mã OpenClaude.
 
+## Lớp hội thoại trước graph nghiên cứu
+
+UI mặc định → endpoint conversation → router intent local → một assistant chat **hoặc** tạo research run có liên kết trong hội thoại. Router chỉ tự chuyển với yêu cầu nghiên cứu rõ; câu hỏi kiến thức/giải thích vẫn chat. Người dùng có selector và `/chat`, `/research` để điều khiển. Chi tiết: [CHAT.md](CHAT.md).
+
+Chat dùng cheap model, transcript user/assistant và tools chỉ đọc tài liệu của hội thoại. Không có tool mở lab/duyệt code trong model; quyền tạo run thuộc endpoint xử lý tin nhắn người dùng. Transcript được lưu trong cùng SQLite với discriminator `kind=chat`, lọc khỏi danh sách research runs; endpoint resume/decision từ chối chat. Dữ liệu cũ không cần migration vì run không có kind tiếp tục được hiểu là research.
+
+Chat tasks độc lập với khóa một graph đang chạy; budget reservation vẫn dùng chung transaction/ledger. Startup đánh dấu pending chat interrupted, không replay API có phí. Hội thoại và run giữ ID riêng; snapshot gần nhất hỗ trợ hỏi đáp, không thay thế evidence artifacts.
+
 ## Từ AgentLaboratory đến bản cải tiến
 
 AgentLaboratory tổ chức literature review, plan formulation, data preparation, experiment, interpretation, report và refinement; trong mã có PhD/Postdoc/Professor/ML Engineer, solver cho code/paper và ba reviewer. Bản này giữ chu trình đó, nhưng tách trách nhiệm theo artifact thay vì chức danh học thuật. Nguồn: [README](https://github.com/SamuelSchmidgall/AgentLaboratory), [workflow ở commit đã clone](https://github.com/SamuelSchmidgall/AgentLaboratory/blob/d9017d90e329112d2a80b7712f37ee9094d2cd27/ai_lab_repo.py).

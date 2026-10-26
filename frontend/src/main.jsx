@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import Conversation from "./Conversation";
 import "./style.css";
 
 const MODES = {
@@ -57,7 +58,8 @@ const STATUS = {
   interrupted: "Đã tạm dừng",
 };
 const NAV = [
-  { id: "chat", label: "Không gian nghiên cứu", icon: MessageSquare },
+  { id: "talk", label: "Trò chuyện", icon: MessageSquare },
+  { id: "chat", label: "Research Lab", icon: FlaskConical },
   { id: "library", label: "Tài liệu & bằng chứng", icon: Library },
   { id: "agents", label: "Đội ngũ nghiên cứu", icon: Users },
   { id: "experiments", label: "Thực nghiệm", icon: FlaskConical },
@@ -75,7 +77,12 @@ async function api(path, options = {}) {
     },
   });
   const data = await r.json();
-  if (!r.ok) throw new Error(data.detail || "Không thể kết nối");
+  if (!r.ok)
+    throw new Error(
+      Array.isArray(data.detail)
+        ? data.detail.map((e) => e.msg).join("; ")
+        : data.detail || "Không thể kết nối",
+    );
   return data;
 }
 function Mark({ size = 36 }) {
@@ -125,7 +132,12 @@ function App() {
     [runs, setRuns] = useState([]),
     [run, setRun] = useState(null),
     [selected, setSelected] = useState(localStorage.getItem("studio-run")),
-    [view, setView] = useState("chat");
+    [view, setView] = useState("talk"),
+    [conversationId, setConversationId] = useState(
+      localStorage.getItem("studio-conversation") || null,
+    ),
+    [conversations, setConversations] = useState([]),
+    [draftSequence, setDraftSequence] = useState(0);
   const [input, setInput] = useState(""),
     [mode, setMode] = useState("demo"),
     [budget, setBudget] = useState(0.75),
@@ -161,9 +173,14 @@ function App() {
   }
   async function refresh(id = selected) {
     try {
-      const [list, u] = await Promise.all([api("/runs"), api("/usage")]);
+      const [list, u, chats] = await Promise.all([
+        api("/runs"),
+        api("/usage"),
+        api("/conversations"),
+      ]);
       setRuns(list);
       setUsage(u);
+      setConversations(chats);
       if (id) setRun(await api("/runs/" + id));
     } catch (e) {
       setError(e.message);
@@ -181,6 +198,9 @@ function App() {
       .catch(() => {});
     refresh();
   }, []);
+  useEffect(() => {
+    localStorage.setItem("studio-conversation", conversationId || "");
+  }, [conversationId]);
   useEffect(() => {
     localStorage.setItem("studio-run", selected || "");
     setPreview(null);
@@ -293,8 +313,9 @@ function App() {
           <button
             className="brand"
             onClick={() => {
-              setSelected(null);
-              setView("chat");
+              setConversationId(null);
+              setDraftSequence((n) => n + 1);
+              setView("talk");
             }}
           >
             <span className="brand-mark">
@@ -308,12 +329,13 @@ function App() {
           <button
             className="new-chat"
             onClick={() => {
-              setSelected(null);
-              setView("chat");
+              setConversationId(null);
+              setDraftSequence((n) => n + 1);
+              setView("talk");
               setInput("");
             }}
           >
-            <Plus size={17} /> Nghiên cứu mới <span>⌘ N</span>
+            <Plus size={17} /> Cuộc trò chuyện mới
           </button>
           <nav>
             {NAV.map((n) => (
@@ -331,32 +353,55 @@ function App() {
             ))}
           </nav>
           <div className="sidebar-label">
-            NGHIÊN CỨU GẦN ĐÂY <span>{runs.length}</span>
+            GẦN ĐÂY <span>{conversations.length + runs.length}</span>
           </div>
           <div className="history">
-            {runs.length ? (
-              runs.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => {
-                    setSelected(r.id);
-                    setView("chat");
-                  }}
-                  className={
-                    "history-item " + (selected === r.id ? "current" : "")
-                  }
-                >
-                  <span className={"dot " + r.status} />
-                  <span>{r.topic}</span>
-                </button>
-              ))
-            ) : (
-              <p className="history-empty">
-                Những câu hỏi lớn
-                <br />
-                bắt đầu từ đây.
-              </p>
+            {conversations.map((c) => (
+              <button
+                key={c.id}
+                className={
+                  "history-item " +
+                  (view === "talk" && conversationId === c.id ? "current" : "")
+                }
+                onClick={() => {
+                  setConversationId(c.id);
+                  setView("talk");
+                }}
+              >
+                <MessageSquare size={12} />
+                <span>{c.topic}</span>
+                {c.status === "responding" && (
+                  <LoaderCircle size={11} className="spin" />
+                )}
+              </button>
+            ))}
+            {!!runs.length && (
+              <div className="history-section-label">RESEARCH LAB</div>
             )}
+            {runs.length
+              ? runs.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => {
+                      setSelected(r.id);
+                      setView("chat");
+                    }}
+                    className={
+                      "history-item " +
+                      (view === "chat" && selected === r.id ? "current" : "")
+                    }
+                  >
+                    <span className={"dot " + r.status} />
+                    <span>{r.topic}</span>
+                  </button>
+                ))
+              : !conversations.length && (
+                  <p className="history-empty">
+                    Những câu hỏi lớn
+                    <br />
+                    bắt đầu từ đây.
+                  </p>
+                )}
           </div>
           <button className="budget-mini" onClick={() => setView("costs")}>
             <Wallet size={17} />
@@ -454,9 +499,30 @@ function App() {
         <div className="body-grid">
           <main
             className={
-              "main-content " + (run && view === "chat" ? "with-run" : "")
+              "main-content " +
+              (view === "talk"
+                ? "talk-content"
+                : run && view === "chat"
+                  ? "with-run"
+                  : "")
             }
           >
+            {view === "talk" && (
+              <Conversation
+                key={conversationId || `new-${draftSequence}`}
+                api={api}
+                Md={Md}
+                modes={MODES}
+                config={config}
+                id={conversationId}
+                onSelect={setConversationId}
+                onChanged={() => refresh()}
+                onOpenLab={(id) => {
+                  setSelected(id);
+                  setView("chat");
+                }}
+              />
+            )}
             {view === "chat" && (
               <>
                 {!run ? (
@@ -494,6 +560,43 @@ function App() {
                   </div>
                 ) : (
                   <div className="conversation">
+                    <div className="button-row">
+                      <button
+                        className="text-link"
+                        onClick={() =>
+                          action(async () => {
+                            let id = run.conversation_id;
+                            if (!id) {
+                              const c = await api("/conversations", {
+                                method: "POST",
+                                body: JSON.stringify({
+                                  mode: run.mode,
+                                  budget: run.budget,
+                                  research_id: run.id,
+                                }),
+                              });
+                              id = c.id;
+                            }
+                            setConversationId(id);
+                            setView("talk");
+                          })
+                        }
+                      >
+                        <MessageSquare size={14} />
+                        {run.conversation_id
+                          ? "Quay lại hội thoại"
+                          : "Chat về nghiên cứu này"}
+                      </button>
+                      <button
+                        className="text-link"
+                        onClick={() => {
+                          setSelected(null);
+                          setInput("");
+                        }}
+                      >
+                        Nhiệm vụ lab mới <Plus size={13} />
+                      </button>
+                    </div>
                     <div className="run-heading">
                       <div>
                         <div className="eyebrow">

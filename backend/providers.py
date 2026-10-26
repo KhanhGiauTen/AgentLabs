@@ -31,7 +31,9 @@ def route(role, mode):
     return "openai", role["model"]
 
 
-def readiness(mode):
+def readiness(mode, role=None):
+    if mode == "hybrid" and role and role["id"] == "chat":
+        mode = "free"  # Ordinary chat never needs the paid Methods/Chair route.
     required = {
         "lean": ["OPENAI_API_KEY"],
         "hybrid": ["OPENAI_API_KEY", "GATEWAY_API_KEY", "GATEWAY_MODEL"],
@@ -86,18 +88,22 @@ def model_cost(model, inp, out, cached=0, cache_write=0):
     ) / 1_000_000
 
 
-async def run_agent(store, run_id, role, mode, context, monthly_budget):
-    readiness(mode)
+async def run_agent(
+    store, run_id, role, mode, context, monthly_budget, *, history=None, system_prompt=None
+):
+    readiness(mode, role)
     provider, model = route(role, mode)
     allowed = list(role["tools"]) + ["read_artifact", "search_documents"]
     schemas = [
         {"type": "function", "name": name, **SCHEMAS[name], "strict": True} for name in allowed
     ]
-    system = SYSTEM + "\nVai trò: " + role["name"] + "\nNhiệm vụ: " + role["brief"]
+    system = system_prompt or (
+        SYSTEM + "\nVai trò: " + role["name"] + "\nNhiệm vụ: " + role["brief"]
+    )
     if role["id"] in {"literature", "experiment"}:
         system += "\nBẮT BUỘC gọi literature_search (vai trò literature) hoặc save_experiment (vai trò experiment) trước khi trả lời cuối. Văn bản khẳng định đã gọi tool không thay thế tool call thật."
-    messages = [{"role": "user", "content": context}]
-    response_input = [{"role": "user", "content": context}]
+    messages = [{"role": "user", "content": context}, *(history or [])]
+    response_input = list(messages)
     required_tool_done = False
     async with httpx.AsyncClient(timeout=180, follow_redirects=False) as client:
         for turn in range(MAX_TURNS):
@@ -113,7 +119,14 @@ async def run_agent(store, run_id, role, mode, context, monthly_budget):
             force_first = turn == 0 and force_tool in {"literature_search", "save_experiment"}
             choice = {"type": "function", "name": force_tool} if force_first else "auto"
             payload_size = len(
-                json.dumps([system, messages, response_input, schemas], ensure_ascii=False).encode()
+                json.dumps(
+                    [
+                        system,
+                        response_input if provider in {"openai", "openclaw"} else messages,
+                        schemas,
+                    ],
+                    ensure_ascii=False,
+                ).encode()
             )
             if payload_size > 240_000:
                 raise ValueError("Context quá lớn; chia nghiên cứu thành lượt nhỏ hơn")

@@ -6,8 +6,14 @@ Kiểm tra ngày 26/10/2026 trên Windows, Python 3.11, project/build ở `D:\Re
 
 - Backend khởi động và phục vụ UI/API tại `http://127.0.0.1:8765`.
 - Kiểm tra UI bằng browser: workflow demo dừng ở điểm duyệt thực nghiệm; chọn skip đi đủ 10 vai trò, tạo bốn scorecard và hiển thị Review Chair ở trạng thái hold. Preview lưu tại `ui-review-board.png`.
+- Kiểm tra chat UI bằng browser: hai tin nhắn thường không tạo run; yêu cầu thiết kế thực nghiệm tạo một run; mở lab thấy điểm duyệt, quay lại chat và gửi tiếp không tạo thêm run. Reload giữ lịch sử; ô nhập giữ dưới màn hình. Preview: `ui-chat-first.png`.
 - Frontend production build thành công; còn cảnh báo không chặn build về directive `use client` của lucide-react trong ứng dụng React client.
-- **22 tests passed** trong lần chạy cuối có thay đổi logic. Bộ test không dùng API trả phí hoặc Docker engine.
+- **63 tests passed** trong lần chạy cuối có thay đổi logic. Bộ test không dùng API trả phí hoặc Docker engine.
+- Router phân biệt câu hỏi/đoạn trích với yêu cầu nghiên cứu rõ, hỗ trợ override và slash commands, không mất API call phân loại.
+- Chat nhiều lượt được lưu; history gửi đúng user/assistant qua adapter OpenAI, OpenRouter, Anthropic và OpenClaw bằng MockTransport, dùng cheap route.
+- Chat khi graph đang chạy không mở thêm lab; research run liên kết về hội thoại. Chat không được gọi endpoint resume/decision như research.
+- Chat tuân thủ cap tháng trước network call; model không được stage code qua tool chat. Dừng, lỗi model và startup recovery giữ đúng trạng thái, không tự replay API.
+- Copy dataset từ chat sang lab giữ nguyên byte gốc kể cả BOM/CRLF, cùng hash và manifest.
 - LangGraph chạy đủ 10 vai trò ở demo, ba reviewer fan-out và Chair fan-in.
 - Checkpoint được mở bằng graph/checkpointer mới rồi resume qua hai human gates.
 - Sửa manuscript được giới hạn một vòng; route yêu cầu experiment mới phải qua rework gate rồi điểm duyệt mã mới.
@@ -30,16 +36,17 @@ Kiểm tra ngày 26/10/2026 trên Windows, Python 3.11, project/build ở `D:\Re
 cd D:\ResearchLab\research-studio
 $env:TEMP='D:\ResearchLab\work\tmp'
 $env:TMP=$env:TEMP
-D:\ResearchLab\work\.venv\Scripts\python.exe -m pytest tests -q --basetemp D:\ResearchLab\work\pytest-run-05
+D:\ResearchLab\work\.venv\Scripts\python.exe -m pytest tests -q
 ```
 
-Lần kiểm tra đã chạy: **22 passed in 12.10s**. Dùng thư mục basetemp tên mới nếu chạy lại; pytest quản lý/xóa nội dung basetemp theo hành vi của công cụ.
+Lần kiểm tra đã chạy: **63 passed in 14.24s**. Temp/cache của lần chạy local đặt ở D; không cần sửa cấu hình thư mục Temp hệ thống.
 
 ## Chưa xác minh / chưa có
 
 | Phần | Trạng thái |
 | --- | --- |
 | LLM suy luận thật với key của bạn | Chưa chạy, chưa có key; không khẳng định đã tạo research thật |
+| Chat với model thật / token streaming | History/provider contract có mock tests; chưa gọi model thật, chưa stream từng token |
 | OpenClaw engine thực hiện client tool roundtrip với provider thật | Contract adapter có test; engine chỉ mới được kiểm tra readiness/auth/model-list |
 | Docker experiment | Docker CLI có, engine chưa chạy; chưa build image hay thực thi container |
 | Sandbox runtime trên Docker/Windows volume thật | Chưa smoke-test; cần kiểm tra quyền user 65534 và mount sau khi bật engine |

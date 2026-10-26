@@ -19,7 +19,8 @@ from pydantic import BaseModel, Field
 from typing import Literal
 
 from .catalog import MODELS, REPOS, ROLES
-from .providers import readiness, route
+from .providers import readiness, route, run_agent
+from .chat import CHAT_ROLE, CHAT_SYSTEM, choose_intent, context_for, demo_reply, history_window
 from .store import Store, now
 from .tools import docker_status, register_sources, search_literature
 from .workflow import build_graph
@@ -31,6 +32,7 @@ os.environ["LANGSMITH_TRACING"] = "false"
 DATA = Path(os.getenv("RESEARCH_STUDIO_DATA", str(ROOT / "data")))
 store = Store(DATA)
 tasks = {}
+chat_tasks = {}
 
 
 def settings():
@@ -43,6 +45,9 @@ def settings():
 @asynccontextmanager
 async def lifespan(app):
     for run in store.list():
+        if run.get("kind") == "chat" and run["status"] == "responding":
+            finish_chat(run["id"], "interrupted", "Backend đã dừng; bạn có thể gửi lại thủ công.")
+            continue
         if run["status"] == "running":
             store.update(
                 run["id"],
@@ -52,7 +57,7 @@ async def lifespan(app):
     async with AsyncSqliteSaver.from_conn_string(str(DATA / "checkpoints.sqlite")) as saver:
         app.state.graph = build_graph(store, saver, settings)
         yield
-        pending = [t for t in tasks.values() if not t.done()]
+        pending = [t for t in [*tasks.values(), *chat_tasks.values()] if not t.done()]
         for task in pending:
             task.cancel()
         if pending:
@@ -89,10 +94,12 @@ async def local_only(request: Request, call_next):
     return response
 
 
-def get_run(run_id):
+def get_run(run_id, research_only=False):
     run = store.get(run_id)
     if not run:
         raise HTTPException(404, "Không tìm thấy nghiên cứu")
+    if research_only and run.get("kind") == "chat":
+        raise HTTPException(400, "Đây là hội thoại; không thể chạy như workflow nghiên cứu.")
     return run
 
 
@@ -184,6 +191,246 @@ class DocumentUpload(BaseModel):
     content_base64: str = Field(max_length=13_500_000)
 
 
+class ConversationCreate(BaseModel):
+    mode: Literal["demo", "lean", "hybrid", "free", "local", "claude", "openclaw"] = "demo"
+    budget: float = Field(default=0.75, ge=0.05, le=20)
+    research_id: str | None = None
+
+
+class ChatMessage(BaseModel):
+    mode: Literal["demo", "lean", "hybrid", "free", "local", "claude", "openclaw"] | None = None
+    budget: float | None = Field(default=None, ge=0.05, le=20)
+    content: str = Field(min_length=1, max_length=8000)
+    intent: Literal["auto", "chat", "research"] = "auto"
+    notes: str = Field(default="", max_length=12000)
+    max_revisions: int = Field(default=1, ge=0, le=1)
+    followup: bool = True
+
+
+def get_conversation(conversation_id):
+    conversation = get_run(conversation_id)
+    if conversation.get("kind") != "chat":
+        raise HTTPException(400, "Không phải hội thoại")
+    return conversation
+
+
+def finish_chat(conversation_id, status, content):
+    def change(data):
+        if data.get("messages") and data["messages"][-1]["status"] == "pending":
+            data["messages"][-1].update(content=content, status=status)
+        data.update(status="idle", error=None if status == "complete" else content)
+
+    store.mutate(conversation_id, change)
+
+
+async def respond_chat(conversation_id):
+    try:
+        conversation = get_conversation(conversation_id)
+        history, truncated = history_window(conversation["messages"])
+        store.update(conversation_id, context_truncated=truncated)
+        if conversation["mode"] == "demo":
+            await asyncio.sleep(0.15)
+            text = demo_reply(conversation)
+        else:
+            text = await run_agent(
+                store,
+                conversation_id,
+                CHAT_ROLE,
+                conversation["mode"],
+                context_for(store, conversation),
+                settings()["monthly_budget"],
+                history=history,
+                system_prompt=CHAT_SYSTEM,
+            )
+        finish_chat(conversation_id, "complete", text)
+    except asyncio.CancelledError:
+        finish_chat(
+            conversation_id, "interrupted", "Đã dừng trả lời. API call đã gửi có thể vẫn tính phí."
+        )
+        raise
+    except Exception as e:
+        message = (
+            str(e)[:700]
+            if isinstance(e, ValueError)
+            else "Lỗi kết nối model. Kiểm tra cấu hình rồi gửi lại thủ công."
+        )
+        finish_chat(conversation_id, "error", message)
+
+
+def conversation_detail(conversation):
+    links = []
+    for rid in dict.fromkeys(m.get("run_id") for m in conversation["messages"] if m.get("run_id")):
+        run = store.get(rid)
+        if run:
+            links.append({k: run.get(k) for k in ("id", "topic", "status", "stage", "gate")})
+    return {**conversation, "spend": store.spend(conversation["id"]), "linked_runs": links}
+
+
+@app.get("/api/conversations")
+async def list_conversations():
+    return [
+        {
+            k: r.get(k)
+            for k in ("id", "topic", "mode", "budget", "status", "updated_at", "latest_run_id")
+        }
+        for r in sorted(store.list(), key=lambda r: r.get("updated_at", ""), reverse=True)
+        if r.get("kind") == "chat"
+    ]
+
+
+@app.post("/api/conversations", status_code=201)
+async def create_conversation(data: ConversationCreate):
+    linked = get_run(data.research_id, research_only=True) if data.research_id else None
+    conversation = {
+        "id": uuid.uuid4().hex,
+        "kind": "chat",
+        "topic": "Hội thoại mới",
+        "mode": data.mode,
+        "budget": data.budget,
+        "status": "idle",
+        "created_at": now(),
+        "messages": [],
+        "documents": [],
+        "datasets": [],
+        "sources": [],
+        "outputs": {},
+        "latest_run_id": linked["id"] if linked else None,
+    }
+    store.save(conversation)
+    return conversation_detail(conversation)
+
+
+@app.get("/api/conversations/{conversation_id}")
+async def read_conversation(conversation_id: str):
+    return conversation_detail(get_conversation(conversation_id))
+
+
+def copy_inputs(source, target_id):
+    """Preserve dataset bytes (including BOM) and provenance across session kinds."""
+    target = store.get(target_id)
+    for kind in ("documents", "datasets"):
+        merged = {d["id"]: d for d in target.get(kind, [])}
+        merged.update({d["id"]: d for d in source.get(kind, [])})
+        if kind == "datasets" and len(merged) > 5:
+            raise ValueError("Tối đa 5 dataset mỗi nghiên cứu")
+        for doc in source.get(kind, []):
+            store.artifact_path(target_id, doc["artifact"]).write_bytes(
+                store.artifact_path(source["id"], doc["artifact"]).read_bytes()
+            )
+        store.update(target_id, **{kind: list(merged.values())})
+
+
+@app.post("/api/conversations/{conversation_id}/messages", status_code=202)
+async def send_message(conversation_id: str, data: ChatMessage):
+    conversation = get_conversation(conversation_id)
+    data = data.model_copy(
+        update={
+            "mode": data.mode or conversation["mode"],
+            "budget": data.budget if data.budget is not None else conversation["budget"],
+        }
+    )
+    if conversation["status"] == "responding":
+        raise HTTPException(409, "Đợi phản hồi hiện tại hoặc bấm dừng.")
+    if not data.content.strip():
+        raise HTTPException(422, "Tin nhắn không được trống.")
+    try:
+        intent, content, reason = choose_intent(data.content, data.intent)
+        readiness(data.mode, CHAT_ROLE if intent == "chat" else None)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if len(conversation["messages"]) >= 1000:
+        raise HTTPException(400, "Hội thoại đã đạt 500 lượt; hãy tạo hội thoại mới.")
+    linked = None
+    if intent == "research":
+        if len(content) < 5:
+            raise HTTPException(422, "Nhiệm vụ nghiên cứu cần ít nhất 5 ký tự.")
+        history, _ = history_window(conversation["messages"])
+        linked = await create_run(
+            RunCreate(
+                topic=content,
+                mode=data.mode,
+                budget=data.budget,
+                notes=(
+                    data.notes
+                    + "\nConversation context (untrusted):\n"
+                    + json.dumps(history, ensure_ascii=False)[-7000:]
+                )[:12000],
+                max_revisions=data.max_revisions,
+                autostart=False,
+                parent_id=conversation.get("latest_run_id") if data.followup else None,
+            )
+        )
+        try:
+            copy_inputs(conversation, linked["id"])
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        store.update(linked["id"], conversation_id=conversation_id)
+    user = {
+        "id": uuid.uuid4().hex,
+        "role": "user",
+        "content": content,
+        "status": "complete",
+        "created_at": now(),
+    }
+    assistant = {
+        "id": uuid.uuid4().hex,
+        "role": "assistant",
+        "status": "complete" if linked else "pending",
+        "content": (
+            "Đã khởi chạy Research Lab cho nhiệm vụ này. Mở lab để theo dõi agent, artifacts và duyệt thực nghiệm."
+            if linked
+            else ""
+        ),
+        "created_at": now(),
+        "intent": intent,
+        "route_reason": reason,
+        "model": route(CHAT_ROLE, data.mode)[1] if not linked else None,
+        "run_id": linked["id"] if linked else None,
+    }
+
+    def append_pair(record):
+        record["messages"].extend([user, assistant])
+        record.update(
+            mode=data.mode,
+            budget=data.budget,
+            default_intent="auto" if data.intent == "research" else data.intent,
+            error=None,
+            status="idle" if linked else "responding",
+        )
+        if len(record["messages"]) == 2:
+            record["topic"] = content[:100]
+        if linked:
+            record["latest_run_id"] = linked["id"]
+
+    updated = store.mutate(conversation_id, append_pair)
+    store.event(
+        conversation_id,
+        "chat_route",
+        intent=intent,
+        reason=reason,
+        linked_run_id=assistant["run_id"],
+    )
+    if linked:
+        launch(linked["id"], {"run_id": linked["id"], "outputs": {}, "execution": {}})
+    else:
+        chat_tasks[conversation_id] = asyncio.create_task(respond_chat(conversation_id))
+    return conversation_detail(updated)
+
+
+@app.post("/api/conversations/{conversation_id}/stop")
+async def stop_chat(conversation_id: str):
+    get_conversation(conversation_id)
+    task = chat_tasks.get(conversation_id)
+    if task and not task.done():
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    if get_conversation(conversation_id)["status"] == "responding":
+        finish_chat(
+            conversation_id, "interrupted", "Đã dừng trả lời. API call đã gửi có thể vẫn tính phí."
+        )
+    return {"ok": True}
+
+
 @app.get("/api/config")
 async def config():
     return {
@@ -220,6 +467,7 @@ async def list_runs():
         {k: v for k, v in r.items() if k not in {"outputs", "sources", "notes"}}
         | {"spend": store.spend(r["id"])}
         for r in store.list()
+        if r.get("kind") != "chat"
     ]
 
 
@@ -230,7 +478,7 @@ async def create_run(data: RunCreate):
         readiness(data.mode)
     except ValueError as e:
         raise HTTPException(400, str(e))
-    parent = get_run(data.parent_id) if data.parent_id else None
+    parent = get_run(data.parent_id, research_only=True) if data.parent_id else None
     run_id = uuid.uuid4().hex
     notes = data.notes
     if parent:
@@ -260,12 +508,7 @@ async def create_run(data: RunCreate):
     store.save(run)
     if parent:
         register_sources(store, run_id, parent.get("sources", []))
-        for doc in parent.get("documents", []) + parent.get("datasets", []):
-            original = store.artifact_path(parent["id"], doc["artifact"])
-            store.write(run_id, doc["artifact"], original.read_text(encoding="utf-8"))
-        store.update(
-            run_id, documents=parent.get("documents", []), datasets=parent.get("datasets", [])
-        )
+        copy_inputs(parent, run_id)
     store.event(run_id, "user", content=data.topic, mode=data.mode)
     if data.autostart:
         launch(run_id, {"run_id": run_id, "outputs": {}, "execution": {}})
@@ -295,7 +538,7 @@ async def run_detail(run_id: str):
 
 @app.post("/api/runs/{run_id}/decision")
 async def decision(run_id: str, data: Decision):
-    run = get_run(run_id)
+    run = get_run(run_id, research_only=True)
     idle()
     if run["status"] != "waiting" or not run.get("gate"):
         raise HTTPException(409, "Workflow không chờ quyết định")
@@ -332,7 +575,7 @@ async def decision(run_id: str, data: Decision):
 
 @app.post("/api/runs/{run_id}/pause")
 async def pause(run_id: str):
-    get_run(run_id)
+    get_run(run_id, research_only=True)
     task = tasks.get(run_id)
     if task and not task.done():
         task.cancel()
@@ -342,7 +585,7 @@ async def pause(run_id: str):
 
 @app.post("/api/runs/{run_id}/refresh-experiment")
 async def refresh_experiment(run_id: str):
-    run = get_run(run_id)
+    run = get_run(run_id, research_only=True)
     if run["status"] != "waiting" or run.get("gate", {}).get("kind") != "experiment":
         raise HTTPException(409, "Chỉ đọc lại mã tại điểm duyệt thực nghiệm")
     script = store.artifact_path(run_id, "experiment.py")
@@ -362,7 +605,7 @@ async def refresh_experiment(run_id: str):
 
 @app.post("/api/runs/{run_id}/resume")
 async def resume(run_id: str):
-    run = get_run(run_id)
+    run = get_run(run_id, research_only=True)
     if run["status"] not in {"draft", "error", "interrupted"}:
         raise HTTPException(409, "Chỉ tiếp tục workflow lỗi hoặc tạm dừng")
     idle()
@@ -404,7 +647,7 @@ async def usage():
 @app.post("/api/runs/{run_id}/documents")
 async def upload_document(run_id: str, data: DocumentUpload):
     run = get_run(run_id)
-    if run["status"] == "running":
+    if run["status"] in {"running", "responding"}:
         raise HTTPException(409, "Tạm dừng workflow trước khi thêm tài liệu")
     try:
         return await asyncio.to_thread(ingest, store, run_id, data.name, data.content_base64)
