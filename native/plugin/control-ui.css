@@ -1,0 +1,20 @@
+.agentlabs-composer { width: 100%; min-width: 0; flex: 0 0 auto; }
+.agentlabs-modes { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 0 4px 10px; width: min(100%, 780px); margin-inline: auto; box-sizing: border-box; }
+.agentlabs-modes[hidden], .agentlabs-hint[hidden] { display: none; }
+.agentlabs-brand { font-size: 12px; font-weight: 600; opacity: .65; margin-right: 7px; }
+.agentlabs-modes button, .agentlabs-modes select {
+  color: inherit; font: inherit; font-size: 12px; background: transparent;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 8px; padding: 6px 10px;
+}
+.agentlabs-modes button { cursor: pointer; }
+.agentlabs-modes button[aria-pressed="true"] { background: color-mix(in srgb, currentColor 9%, transparent); font-weight: 600; }
+.agentlabs-modes button:focus-visible, .agentlabs-modes select:focus-visible { outline: 2px solid #6c92d9; outline-offset: 2px; }
+.agentlabs-modes button:disabled { cursor: default; opacity: .5; }
+.agentlabs-new-chat { margin-left: auto; }
+.agentlabs-hint { font-size: 11px; opacity: .65; line-height: 1.5; padding: 8px 4px 0; max-width: 780px; margin-inline: auto; box-sizing: border-box; }
+.agentlabs-welcome { min-height: 0; flex: 1 1 0; padding: 35px 24px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; overflow: auto; }
+.agentlabs-mark { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; background: color-mix(in srgb, currentColor 7%, transparent); font-weight: 650; letter-spacing: -1px; }
+.agentlabs-welcome h1 { font-size: 30px; letter-spacing: -1px; font-weight: 600; margin: 18px 0 8px; }
+.agentlabs-welcome p { font-size: 16px; margin: 0; line-height: 1.7; }
+.agentlabs-welcome .agentlabs-welcome-detail { white-space: pre-line; max-width: 460px; font-size: 13px; opacity: .62; margin-top: 12px; }

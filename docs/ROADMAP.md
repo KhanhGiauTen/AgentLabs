@@ -1,6 +1,6 @@
 # AgentLabs roadmap
 
-The current release establishes persistent chat as the default, a conservative intent router into Research Lab, and a local harness with 10 logical roles, three sealed reviewers and a Chair, bounded revision routes, checkpoint recovery and explicit experiment approval. Chat has bounded recent history, read-only document tools and shared budget accounting; token streaming and arbitrary local repo access are not implemented. Milestones below are planned, not completed features.
+The primary distribution now customizes pinned OpenClaw: native chat/agents, role-bound research tools, durable phase/artifact state, sealed tool reports and Chair barrier, bounded revision, one-time execution approval, read-only repository tools and a local model-budget proxy. The separate Python/React V1 prototype is retained. Native PDF ingestion, dataset mounts, worktree editing, research panels/export and LaTeX remain pending. See `NATIVE_RESEARCH_DESIGN.md` and `VALIDATION.md` for implemented boundaries and verification gaps. Milestones below are future work.
 
 ## 1. Validate research quality on a small pilot
 

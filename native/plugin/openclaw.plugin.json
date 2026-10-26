@@ -1,0 +1,42 @@
+{
+  "id": "agentlabs-research",
+  "name": "AgentLabs Research",
+  "description": "Native research project state, artifacts, literature and sealed review gates.",
+  "categories": ["developer-tools"],
+  "activation": { "onStartup": true },
+  "contracts": {
+    "tools": [
+      "lab_begin",
+      "lab_inspect",
+      "lab_read",
+      "lab_submit",
+      "lab_search",
+      "lab_review",
+      "lab_decide",
+      "lab_execute",
+      "lab_rework",
+      "lab_budget",
+      "lab_repo_list",
+      "lab_repo_tree",
+      "lab_repo_read",
+      "lab_repo_search"
+    ]
+  },
+  "toolMetadata": {
+    "lab_begin": { "optional": true },
+    "lab_inspect": { "optional": true },
+    "lab_read": { "optional": true },
+    "lab_submit": { "optional": true },
+    "lab_search": { "optional": true },
+    "lab_review": { "optional": true },
+    "lab_decide": { "optional": true },
+    "lab_execute": { "optional": true },
+    "lab_rework": { "optional": true },
+    "lab_budget": { "optional": true },
+    "lab_repo_list": { "optional": true },
+    "lab_repo_tree": { "optional": true },
+    "lab_repo_read": { "optional": true },
+    "lab_repo_search": { "optional": true }
+  },
+  "configSchema": { "type": "object", "additionalProperties": false }
+}

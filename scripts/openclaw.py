@@ -184,10 +184,15 @@ def main():
         npm = shutil.which("npm.cmd", path=env["PATH"])
         if not npm:
             raise SystemExit("npm.cmd not found")
-        # On Windows npm.cmd needs cmd; arguments are fixed and contain no credentials.
+        npm_cli = Path(npm).parent / "node_modules/npm/bin/npm-cli.js"
+        if not npm_cli.exists():
+            raise SystemExit("npm CLI entrypoint missing beside npm.cmd")
+        # Use the selected compatible Node explicitly. npm.cmd can otherwise
+        # prefer an older node.exe beside itself even when PATH is corrected.
         subprocess.run(
             [
-                npm,
+                str(node),
+                str(npm_cli),
                 "install",
                 "--prefix",
                 str(WORK / "openclaw-runtime"),
@@ -198,7 +203,6 @@ def main():
             ],
             env=env,
             check=True,
-            shell=os.name == "nt",
         )
         setup()
         return

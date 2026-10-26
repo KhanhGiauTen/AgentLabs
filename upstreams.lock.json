@@ -7,6 +7,22 @@
     "runtime_package": "openclaw@2026.10.7",
     "directory": "openclaw"
   },
+  "openclaw_native": {
+    "repository": "https://github.com/openclaw/openclaw.git",
+    "tag": "v2026.10.10-beta.3",
+    "commit": "15dffe5258a93c3d9c5dfd0a2b2de9989ebe7e14",
+    "version": "2026.10.10-beta.3",
+    "runtime_package": "openclaw@2026.10.10-beta.3",
+    "runtime_integrity": "sha512-OGKys4zxLjYeZny0aHZK3k1VBoZC/5MyqT+lCk6Pzw52QxkqtAyKtyu/cu4GfcelbRZHOCo3yJZvaYE7Ua9ISA==",
+    "directory": "openclaw-native",
+    "reason": "Pinned candidate containing upstream canonical-startup checkpoint repair #168751; 2026.10.7 was reproduced refusing multiple native agents after restart. Separate runtime/state backup; no automatic prerelease updates."
+  },
+  "openclaude_reference": {
+    "repository": "https://github.com/Twigpine/openclaude.git",
+    "commit": "cb4a72bf1c14cd754e545b985a38a53938dda656",
+    "directory": "reference-openclaude",
+    "purpose": "read-only architecture reference; not installed or redistributed"
+  },
   "agentlaboratory": {
     "repository": "https://github.com/SamuelSchmidgall/AgentLaboratory.git",
     "commit": "d9017d90e329112d2a80b7712f37ee9094d2cd27",

@@ -1,5 +1,13 @@
 # OpenClaw local + research harness
 
+**Distribution mặc định hiện là native OpenClaw**, UI port 18790 và model proxy 18791.
+Dùng `agentlabs.ps1 start` / `agentlabs.ps1 dashboard`; hướng dẫn đầy đủ ở
+[native README](../native/README.md) và [thiết kế V2](NATIVE_RESEARCH_DESIGN.md).
+State riêng: `D:\ResearchLab\work\agentlabs-native`.
+
+Phần còn lại bên dưới mô tả **adapter của prototype V1** trên 8765/18789;
+không dùng các lệnh bridge này thay cho launcher native.
+
 ## Cấu trúc trên ổ D
 
 ```text

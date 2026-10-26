@@ -1,5 +1,21 @@
 # Đề xuất chi phí cho ngân sách 10–20 USD/tháng
 
+**Native V2 hiện có proxy riêng** trên loopback: mặc định $15/tháng, $1/ngày,
+4000 output tokens/call và 30 free requests/ngày. Dùng `agentlabs.ps1 budget`
+để xem ledger native. Luna cho chat/tác vụ thường; Sol chỉ Methods/Chair ở
+Lean/Hybrid. Giá Standard đã đối chiếu [OpenAI API pricing](https://developers.openai.com/api/docs/pricing):
+Luna $0.10 input / $0.50 output, Sol 6.1 $2 input / $10 output mỗi 1M tokens.
+Ví dụ 3M/0.5M Luna và 2M/0.3M Sol input/output ≈ $7.55, chưa VAT/dự phòng;
+đây là giả định workload, không cam kết số task/paper.
+
+Native reserve trước request, settle reported usage, giữ reserve khi không rõ.
+Free không fallback paid. Proxy không tự retry; nếu OpenClaw recovery phát request
+mới thì request đó vẫn qua admission/ledger. Chi phí là ước tính local, không phải
+hóa đơn hoặc account-wide cap; đặt thêm giới hạn provider. V1 có ledger riêng.
+
+Phân tích bên dưới được giữ từ prototype V1; các nhận định về overhead bridge
+8765/18789 chỉ áp dụng cho adapter đó. Hướng dẫn native: [native README](../native/README.md).
+
 Ngày kiểm tra nguồn: **26/10/2026**. Số tiền dưới đây là USD, chưa gồm VAT, phí nạp thẻ, chênh lệch tỷ giá, điện và khấu hao máy. Không giả định free credits còn mãi.
 
 ## Chọn cấu hình

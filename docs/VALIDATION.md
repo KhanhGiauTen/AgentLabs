@@ -1,5 +1,31 @@
 # Trạng thái kiểm thử và giới hạn
 
+## Native OpenClaw V2 — 2026-10-27
+
+- **77 Python tests + 22 native plugin tests passed**, không gọi API trả phí.
+- Profile đã validate trên v2026.10.7 và bản native đang pin v2026.10.10-beta.3; host nạp `agentlabs-research` và 14 tools qua public SDK.
+- 10.7 đã tái hiện checkpoint-expiry khiến nhiều agent unavailable sau restart, dù database integrity OK. Đã backup và chạy Doctor đúng runtime để migrate schema 25 → 27 cho pin beta chứa producer repair. Beta không được gọi là stable; chưa soak-test dài hạn. CLI `status` kiểm tra từng agent: **10/10 ready sau migration và sau restart**. Nguồn/giới hạn của bản sửa: [upstream #166634](https://github.com/openclaw/openclaw/issues/166634).
+- Startup log thực tế xác nhận `lab-openai/gpt-6-luna`, đi qua proxy local. Config có metadata phiên bản để tránh recovery tự khôi phục route cũ.
+- `scripts/verify_native.py` qua trên Gateway đã xác thực: phase/role assignment, từ chối Chair sớm, peer reports sealed, hai review nộp đồng thời merge qua CAS, Chair HOLD và HTTP không gọi được execution. Các session TEST được archive sau kiểm tra. Đây là operator tool integration, không phải LLM reasoning hay sessions_spawn.
+- Budget tests gồm admission đồng thời, uncertainty qua restart, free quota, kỳ tháng, fragmented SSE/tool-call forwarding, thiếu key và chặn budget trước network. Repo tests gồm symlink escape, loại credentials/data, provenance dòng/hash và caller đã bị thu hồi.
+- Native prompt hook chỉ mở tools điều phối cho yêu cầu nghiên cứu rõ hoặc continuation của project đã nhận. Chat thường đọc repo trực tiếp; không lấy ý định từ reconstructed history. `CHAT:` giữ lượt ở chat; `RESEARCH:` là override rõ.
+- Profile bật `hooks.allowConversationAccess` cho plugin local để các hook chat được đăng ký; test cấu hình ngăn bỏ sót opt-in này. Task reviewer được dựng lại từ snapshot trong hook, loại peer text của Director; steering bị chặn.
+- Chair có quyền HOLD độc lập ngay cả khi ba reviewer đều đồng ý. Thiếu verdict rõ ràng hoặc còn yêu cầu sửa/thực nghiệm/tài liệu giữ HOLD; test ngăn trạng thái ready xuất hiện khi revision còn chờ.
+- UI dùng Control UI gốc, theme sáng và sidebar thu gọn. Có AI/ML welcome, Chat / Nghiên cứu, bốn gợi ý AI/ML và + Chat mới qua native sessions API; giữ phần nhập/gửi và transcript có nội dung của host. Đã build JS/CSS thành asset có hash, kiểm tra browser việc đổi chế độ giữ nháp, không tự submit, và tạo được native conversation trực tiếp. Preview: `native-ui.png`.
+- Chưa có API key. Kiểm tra UI cuối xác nhận pre-run hook chặn trước model work và hiển thị hướng dẫn cấu hình `.env`; ledger native vẫn 0 calls / $0. Không có câu trả lời LLM thành công. Chưa chứng minh native spawn/yield, model/tool roundtrip hoặc approval UI với model thật. Docker engine đang tắt; chưa chạy container.
+- Native dataset mounts, PDF/page spans, Git worktrees, research panels/export và LaTeX/PDF còn thiếu. Các chức năng V1 bên dưới không tự trở thành chức năng native.
+
+```powershell
+python -m pytest tests -q
+cd native/plugin
+npm ci --ignore-scripts
+npm test
+# Từ repository root, khi native Gateway đang chạy:
+python scripts/verify_native.py
+```
+
+## Prototype V1 — bản ghi kiểm thử được giữ lại
+
 Kiểm tra ngày 26/10/2026 trên Windows, Python 3.11, project/build ở `D:\ResearchLab`. Kết quả này chứng minh các contract phần mềm được liệt kê; không phải benchmark chất lượng nghiên cứu hay paper.
 
 ## Đã xác minh

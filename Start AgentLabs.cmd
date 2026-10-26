@@ -1,3 +1,3 @@
 @echo off
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0agentlabs.ps1" start
 pause
